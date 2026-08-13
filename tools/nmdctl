@@ -714,6 +714,14 @@ collect_resync_status() {
 
     # Check for paused operation
     if [ "$mdresync" = "0" ] && [ "$mdresyncpos" != "0" ] && [ -n "$mdresyncpos" ]; then
+        # A paused operation is still an active one (just not currently making
+        # progress) — it can be resumed, and any caller checking "active" needs
+        # that to stay true while paused, or a paused-then-resumable operation
+        # looks indistinguishable from no operation at all.
+        # format_human_resync_status() below checks "paused" before "active" in
+        # its own if/elif chain, so this doesn't affect the human-readable
+        # PAUSED output.
+        RESYNC_STATUS_DATA["active"]="true"
         RESYNC_STATUS_DATA["paused"]="true"
         local progress=0
         if [ "$mdresyncsize" -gt 0 ]; then
