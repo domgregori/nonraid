@@ -741,6 +741,14 @@ collect_resync_status() {
     # Check for pending operations
     elif [ "$mdresync" = "0" ] && { [ "$mdresyncaction" = "clear" ] || [[ "$mdresyncaction" == recon* ]]; }; then
         RESYNC_STATUS_DATA["pending"]="true"
+        # Same size_kb/size_gb a caller sees once this becomes active/paused (below) — left at the
+        # "0" default here previously, which made a genuinely-pending operation with a real size
+        # indistinguishable from mdResyncSize itself actually being 0 (e.g. a stale num_new/etc
+        # counter in the driver still claiming something's pending after its disk was unassigned,
+        # with nothing real left to compute a size from — see md_unraid.c's status_resync()).
+        # Callers need this to tell those two apart instead of guessing from action name alone.
+        RESYNC_STATUS_DATA["size_kb"]="$mdresyncsize"
+        RESYNC_STATUS_DATA["size_gb"]=$(format_kbytes "$mdresyncsize" 0 0 "gb")
     # Check for active operation
     elif [ "$mdresync" != "0" ] && [ -n "$mdresync" ]; then
         RESYNC_STATUS_DATA["active"]="true"
