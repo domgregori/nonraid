@@ -2307,6 +2307,19 @@ import_disks() {
             if [ "$find_rc" -eq 2 ]; then
                 echo -e "${YELLOW}Warning: Partition $partition on $found_device is locked by another process, skipping${NC}"
                 partition=""
+            elif [ "$find_rc" -ne 0 ]; then
+                # No partition table on this disk (not the locked case above, just genuinely none)
+                # — it may be assigned as a raw whole-disk device, exactly like add_disk()'s own
+                # explicit SLOT:DEVICE path already supports (see its
+                # selected_partition="$param_device" assignment, used with no partition-finding at
+                # all — this is the array's own normal, intended way to use a disk with no
+                # partition table, not a sign of corruption). Fall back to the whole disk itself
+                # rather than failing outright, so a disk added raw can be automatically
+                # re-imported after a stop/start cycle instead of needing a manual /proc/nmdcmd
+                # import workaround — confirmed live: a raw parity disk and two raw data disks all
+                # failed this exact "No partition found" rescan after a plain stop/start, despite
+                # being perfectly healthy, already-imported disks moments before.
+                partition="$found_device"
             fi
             if [ -n "$partition" ]; then
                 # Get the partition size
