@@ -1083,10 +1083,19 @@ static int do_run(mddev_t *mddev)
 	return 0;
 }
 
-static int do_stop(mddev_t *mddev)
+static int do_stop(mddev_t *mddev, int notifier)
 {
 	mdp_super_t *sb = &mddev->sb;
 	int i;
+
+	/* commit current live state before the module can be unloaded - nothing
+	 * else guarantees the on-disk superblock reflects it (see md_do_recovery's
+	 * own md_update_sb() calls, the only other writers). Skipped when called
+	 * from the reboot notifier (see stop_array()'s own doc comment) - by that
+	 * point in shutdown the filesystem holding the superblock file may
+	 * already be unmounted. */
+	if (!notifier)
+		md_update_sb(mddev);
 
 	/* remove md devices */
 	for (i = 1; i <= 28; i++) {
@@ -1533,7 +1542,7 @@ static int start_array(dev_t array_dev, char *state)
         if (sb->num_disks > 2) {
                 err = do_run(mddev);
                 if (err) {
-                        do_stop(mddev);
+                        do_stop(mddev, 0);
                         return err;
                 }
 	}
@@ -1570,7 +1579,7 @@ static int stop_array(dev_t array_dev, int notifier)
         mddev->curr_resync = 0;
 
 	if (mddev->private) {
-                do_stop(mddev);
+                do_stop(mddev, notifier);
         }
 	mddev->state = STOPPED;
 
