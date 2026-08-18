@@ -488,6 +488,21 @@ collect_array_health() {
     local sbsynced2="${NMDSTAT_VALUES[sbSynced2]}"
     local sbsyncerrs="${NMDSTAT_VALUES[sbSyncErrs]}"
     local sbsyncexit="${NMDSTAT_VALUES[sbSyncExit]}"
+    local mdresynccorr="${NMDSTAT_VALUES[mdResyncCorr]}"
+
+    # sbSyncErrs is the *last completed check's* mismatch count - the kernel driver logs every
+    # mismatch it finds into this same counter regardless of whether that mismatch got corrected
+    # or not (see md_sync_error() in md_unraid.c, called for both the "corrected" and "incorrect"
+    # cases in unraid.c with nothing at this level distinguishing which). A CORRECT-mode check
+    # that exits cleanly (sbSyncExit=0) already fixed every mismatch it counted - for a
+    # single-parity array parity is always unambiguously derivable from data, so nothing here is
+    # actually broken anymore. Without this, sbSyncErrs never resets itself back to 0 (only the
+    # *start* of the next check clears it), so the array would report DEGRADED indefinitely after
+    # any correcting check that found ≥1 real (and already-fixed) mismatch - stuck until an admin
+    # happens to run a second, multi-hour check that finds nothing. A NOCORRECT check, or one that
+    # exited abnormally, still means sbSyncErrs reflects a real unresolved problem.
+    local sync_errs_resolved=0
+    [ "$sbsyncerrs" -gt 0 ] && [ "$sbsyncexit" -eq 0 ] && [ "$mdresynccorr" = "1" ] && sync_errs_resolved=1
 
     # Count the total number of disk slots that are defined in the array
     local total_slots=$(get_defined_slots_count)
@@ -598,7 +613,8 @@ collect_array_health() {
         health_code=1
     elif [ "$mdnummissing" -gt 0 ] || [ "$mdnuminvalid" -gt 0 ] ||
          [ "$mdnumwrong" -gt 0 ] || [ "$mdnumdisabled" -gt 0 ] ||
-         [ "$mdnumreplaced" -gt 0 ] || [ "$sbsyncerrs" -gt 0 ] ||
+         [ "$mdnumreplaced" -gt 0 ] ||
+         { [ "$sbsyncerrs" -gt 0 ] && [ "$sync_errs_resolved" -eq 0 ]; } ||
          [ "$sbsyncexit" -gt 0 ]; then
         health_status="DEGRADED"
 
@@ -608,7 +624,7 @@ collect_array_health() {
         [ "$mdnumwrong" -gt 0 ] && issues="${issues}Wrong: $mdnumwrong, "
         [ "$mdnumdisabled" -gt 0 ] && issues="${issues}Disabled: $mdnumdisabled, "
         [ "$mdnumreplaced" -gt 0 ] && issues="${issues}Replaced: $mdnumreplaced, "
-        [ "$sbsyncerrs" -gt 0 ] && issues="${issues}Sync Errors: $sbsyncerrs, "
+        { [ "$sbsyncerrs" -gt 0 ] && [ "$sync_errs_resolved" -eq 0 ]; } && issues="${issues}Sync Errors: $sbsyncerrs, "
         [ "$disks_num_errors" -gt 0 ] && issues="${issues}I/O Errors: $disks_num_errors, "
         health_details=${issues%, }
         health_code=1
