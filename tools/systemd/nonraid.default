@@ -1,10 +1,5 @@
 # This file is sourced by the nonraid.service systemd unit
 
-# Path to the NonRAID superblock file
-# Default: /nonraid.dat
-# Example: SUPER=/path/to/your/nonraid.dat
-#SUPER=/nonraid.dat
-
 # Automatically mount/unmount array disks with the service
 # Set to "no" to disable automatic mounting and unmounting of array disks.
 # Note that you will then have to make sure the disks are unmounted before the

@@ -7,13 +7,12 @@ After=local-fs.target
 Type=oneshot
 RemainAfterExit=yes
 StateDirectory=nonraid
-Environment="SUPER=/nonraid.dat"
 Environment="AUTOMOUNT=yes"
 Environment="MOUNT_PARAMS="
 Environment="STARTUP_SETTINGS="
 EnvironmentFile=-/etc/default/nonraid
-ExecStartPre=/sbin/modprobe md_nonraid super=$SUPER
-ExecStart=-nmdctl -u -v -s $SUPER start
+ExecStartPre=/sbin/modprobe md_nonraid super=/nonraid.dat
+ExecStart=-nmdctl -u -v -s /nonraid.dat start
 ExecStart=bash -c 'if [[ -f "${STATE_DIRECTORY}/array.running" ]]; then echo "Unclean shutdown detected!"; nmdctl -u check correct; else touch "${STATE_DIRECTORY}/array.running"; fi'
 ExecStart=-bash -c 'echo -n "$STARTUP_SETTINGS"|while IFS= read -rd, set || [ -n "$set" ]; do nmdctl set $set; done'
 ExecStart=-bash -c '[ "$AUTOMOUNT" = "yes" ] && nmdctl -u mount $MOUNT_PARAMS || true'
