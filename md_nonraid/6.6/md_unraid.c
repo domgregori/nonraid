@@ -912,9 +912,10 @@ int md_write_error(mddev_t *mddev, int disk_number, sector_t sector)
         }
         else {
                 if (disk_enabled(disk)) {
-                        /* must be a disk we're clearing */
-                        mark_disk_disabled(disk);
-                        mddev->num_new--;
+			/* must be a disk we're clearing */
+			mark_disk_disabled(disk);
+			rdev->status = DISK_DSBL;
+			mddev->num_new--;
                         if (mddev->num_new == 0) {
                                 /* stop recovery (clearing) if it's running */
                                 md_interrupt_thread(mddev->recovery_thread);
@@ -1209,9 +1210,13 @@ static void recompute_counters(mddev_t *mddev)
 		mdk_rdev_t *rdev = &mddev->rdev[i];
 		mdp_disk_t *disk = &sb->disks[i];
 
-		if (rdev->status == DISK_OK)
+		/* "present" is a non-zero device size, not a healthy status - import_slot()
+		 * counts every present disk (incl. P/Q and any disk later downgraded to
+		 * WRONG/INVALID/DSBL/DSBL_NEW/NEW) in num_disks. */
+		if (rdev->size)
 			mddev->num_disks++;
-		else if (rdev->status == DISK_NP_MISSING)
+
+		if (rdev->status == DISK_NP_MISSING)
 			mddev->num_missing++;
 		else if (rdev->status == DISK_WRONG)
 			mddev->num_wrong++;
