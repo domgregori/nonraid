@@ -1256,7 +1256,11 @@ static void recompute_counters(mddev_t *mddev)
 		    rdev->status == DISK_DSBL_NEW)
 			mddev->num_disabled++;
 
-		if (disk_active(disk) && !disk_valid(disk))
+		/* Only count slots actually in the array (physical or recorded disk):
+		 * the driver marks P/Q "always active" even when empty (e.g. the Q
+		 * slot in a single-parity array), and import_slot() never runs for
+		 * those empty slots - counting them would over-report num_invalid. */
+		if ((rdev->size || disk->size) && disk_active(disk) && !disk_valid(disk))
 			mddev->num_invalid++;
 	}
 }
