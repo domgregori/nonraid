@@ -570,6 +570,7 @@ static void free_mddev(mddev_t *mddev)
 }
 
 static void md_do_recovery(mddev_t *mddev, unsigned long unused);  /* fwd ref */
+static void recompute_counters(mddev_t *mddev);  /* fwd ref */
 
 /* Allocate memory and initialize a mddev control block.
  * Called when driver starts up.
@@ -926,6 +927,14 @@ int md_write_error(mddev_t *mddev, int disk_number, sector_t sector)
                 }
         }
 
+        /* Recompute the derived counters from the rdev/disk state the branches
+         * above just settled - same self-correcting pattern as
+         * md_do_recovery()'s post-sync recompute. Skipped when nothing actually
+         * changed (update_sb==0): the early-out paths above (num_disabled/
+         * num_invalid already at 2) never touch rdev/disk state either. */
+        if (update_sb)
+                recompute_counters(mddev);
+
         return update_sb;
 }
 
@@ -1214,11 +1223,19 @@ static int md_do_sync(mddev_t *mddev)
 }
 
 /* Recompute the derived disk counters from the live rdev statuses and the
- * recorded superblock state. Called after a successful sync so the counters
- * match post-sync reality: import_slot() derives them fresh on each import,
- * but md_do_recovery()'s success path only adjusted num_invalid/num_new
- * incrementally, leaving num_disabled (and num_invalid) stale after a
- * replace+recon and making the array report DEGRADED despite a healthy disk.
+ * recorded superblock state. Called at the end of every function that settles
+ * rdev/disk state after hand-adjusting the individual counters along the way
+ * (md_do_recovery()'s sync-success path, start_array(), md_write_error()) so
+ * the final counts always match reality regardless of whether every branch's
+ * own incremental bookkeeping was exactly right - the original motivation was
+ * md_do_recovery()'s success path only adjusting num_invalid/num_new,
+ * leaving num_disabled (and num_invalid) stale after a replace+recon and
+ * making the array report DEGRADED despite a healthy disk, but any hand-
+ * tracked counter is one edit away from the same class of drift.
+ * import_slot() is the one exception: it runs once per slot, incrementally,
+ * before every disk has necessarily been imported, so a full recompute mid-
+ * sequence would see not-yet-visited slots' stale on-disk state and miscount -
+ * it keeps deriving counters fresh per-call the way it always has.
  */
 static void recompute_counters(mddev_t *mddev)
 {
@@ -1304,20 +1321,17 @@ static void md_do_recovery(mddev_t *mddev, unsigned long unused)
                 int i;
                         
                 /* After successful rebuild, invalid enabled disk(s) now valid and
-                 * new disks are now active.
+                 * new disks are now active. The counters themselves aren't touched
+                 * here - recompute_counters() below derives them fresh from the
+                 * rdev/disk state this loop just settled.
                  */
                 for (i = 0; i < MD_SB_DISKS; i++) {
                         mdp_disk_t *disk = &sb->disks[i];
                         mdk_rdev_t *rdev = &mddev->rdev[i];
-                                
+
                         if (disk_enabled(disk) && !disk_valid(disk)) {
-                                if (rdev->status == DISK_NEW) {
+                                if (rdev->status == DISK_NEW)
                                         mark_disk_active(disk);
-                                        mddev->num_new--;
-                                }
-                                else {
-                                        mddev->num_invalid--;
-                                }
 				mark_disk_valid(disk);
 				rdev->status = DISK_OK;
 			}
@@ -1592,6 +1606,13 @@ static int start_array(dev_t array_dev, char *state)
                         }
                 }
         }
+
+	/* Recompute the derived counters from final rdev/disk state now that every
+	 * branch above (and the import that preceded this call) has settled - same
+	 * self-correcting pattern as md_do_recovery()'s post-sync recompute, so a
+	 * hand-tracking miscount in any one branch above can't leave stale counts
+	 * behind here either. */
+	recompute_counters(mddev);
 
 	/* gitty up */
         if (sb->num_disks > 2) {
