@@ -1187,6 +1187,50 @@ int md_do_sync(mddev_t *mddev)
 	return err;
 }
 
+/* Recompute the derived disk counters from the live rdev statuses and the
+ * recorded superblock state. Called after a successful sync so the counters
+ * match post-sync reality: import_slot() derives them fresh on each import,
+ * but md_do_recovery()'s success path only adjusted num_invalid/num_new
+ * incrementally, leaving num_disabled (and num_invalid) stale after a
+ * replace+recon and making the array report DEGRADED despite a healthy disk.
+ */
+static void recompute_counters(mddev_t *mddev)
+{
+	mdp_super_t *sb = &mddev->sb;
+	int i;
+
+	mddev->num_disks = 0;
+	mddev->num_disabled = 0;
+	mddev->num_replaced = 0;
+	mddev->num_invalid = 0;
+	mddev->num_missing = 0;
+	mddev->num_wrong = 0;
+	mddev->num_new = 0;
+
+	for (i = 0; i < MD_SB_DISKS; i++) {
+		mdk_rdev_t *rdev = &mddev->rdev[i];
+		mdp_disk_t *disk = &sb->disks[i];
+
+		if (rdev->status == DISK_OK)
+			mddev->num_disks++;
+		else if (rdev->status == DISK_NP_MISSING)
+			mddev->num_missing++;
+		else if (rdev->status == DISK_WRONG)
+			mddev->num_wrong++;
+		else if (rdev->status == DISK_NEW)
+			mddev->num_new++;
+		else if (rdev->status == DISK_DSBL_NEW)
+			mddev->num_replaced++;
+
+		if (rdev->status == DISK_DSBL || rdev->status == DISK_NP_DSBL ||
+		    rdev->status == DISK_DSBL_NEW)
+			mddev->num_disabled++;
+
+		if (disk_active(disk) && !disk_valid(disk))
+			mddev->num_invalid++;
+	}
+}
+
 /*
  * This is a kernel thread which syncs a spare disk with the active array. If no disk is
  * invalid, then we execute a "check".
@@ -1240,12 +1284,14 @@ static void md_do_recovery(mddev_t *mddev, unsigned long unused)
                                 else {
                                         mddev->num_invalid--;
                                 }
-                                mark_disk_valid(disk);
-                                rdev->status = DISK_OK;
-                        }
-                }
+				mark_disk_valid(disk);
+				rdev->status = DISK_OK;
+			}
+		}
 
-                mddev->curr_resync = 0;
+		recompute_counters(mddev);
+
+		mddev->curr_resync = 0;
                 printk("nmd: sync done. time=%usec\n", sb->stime2 - sb->stime);
 	}
 
