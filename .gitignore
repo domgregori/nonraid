@@ -1,0 +1,3 @@
+# Personal/local-only tooling, never shipped or synced to the remote - same convention as
+# nonraid-webui's own tools/local/.
+tools/local/

@@ -2637,8 +2637,30 @@ stop_array() {
 
     echo "Stopping array..."
     if ! run_nmd_command "stop"; then
-        echo -e "${RED}Error: Failed to stop array${NC}"
-        return 1
+        # The kernel driver refuses to stop while mddev->active (a shared open-refcount across
+        # every nmdN device node) is nonzero - and that count can lag the real teardown above by
+        # a fraction of a second, confirmed on real hardware right after a LUKS-backed disk's
+        # `cryptsetup close`: "EBUSY", "nmd: 1 devices still in use." in the kernel log, with the
+        # filesystem/LUKS unmount that same disk just went through having already reported
+        # success. udev's own brief probe-open of a just-changed block device is the likely
+        # culprit (not confirmed with certainty - nothing else in the kernel or udev logs pins it
+        # down further), but either way it clears itself within well under a second. `udevadm
+        # settle` plus a short bounded retry absorbs that race without masking a real, persistent
+        # busy state - if every attempt still fails, this reports exactly the same error as
+        # before.
+        command -v udevadm >/dev/null 2>&1 && udevadm settle --timeout=5 2>/dev/null
+        local stopped=1
+        for _ in 1 2 3 4 5; do
+            sleep 0.2
+            if echo -n "stop" > /proc/nmdcmd 2>/dev/null; then
+                stopped=0
+                break
+            fi
+        done
+        if [ "$stopped" -ne 0 ]; then
+            echo -e "${RED}Error: Failed to stop array${NC}"
+            return 1
+        fi
     fi
 
     if [ "$UNATTENDED" -eq 0 ]; then
