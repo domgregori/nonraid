@@ -112,7 +112,20 @@ jobs:
           echo "Building for kernel version: $KVERSION"
 
           # Try to build the module
-          dkms build nonraid-dkms/$DKMS_VERSION -k "$KVERSION"
+          if ! dkms build nonraid-dkms/$DKMS_VERSION -k "$KVERSION"; then
+            echo "::group::dkms build failed - dumping make.log"
+            MAKE_LOGS=$(find /var/lib/dkms/nonraid-dkms/$DKMS_VERSION/ -name "make.log")
+            if [ -n "$MAKE_LOGS" ]; then
+              for LOG in $MAKE_LOGS; do
+                echo "--- $LOG (last 200 lines) ---"
+                tail -n 200 "$LOG"
+              done
+            else
+              echo "No make.log found under /var/lib/dkms/nonraid-dkms/$DKMS_VERSION/"
+            fi
+            echo "::endgroup::"
+            exit 1
+          fi
 
           echo "DKMS status after build:"
           dkms status

@@ -21,10 +21,10 @@ Unlike in UnRAID, where the driver replaces the kernel's standard `md` driver, t
 While this is a fork, we try to keep the changes to driver minimal to make syncs with upstream easier. The driver currently has patches to rebrand and separate the module from `md` and from `raid6_pq`, and a couple of patches to prevent kernel crashes if starting the array without importing all disks first or importing in the "wrong" order.
 
 > [!WARNING]
-> :radioactive: This is an early-stage project, and while the driver and `nmdctl` management tool have been tested in both virtualized environments and some physical setups, data loss is still a possibility.
-> This is mainly intended for DIY enthusiasts comfortable with Linux command line usage.
->
+> This project requires being comfortable with the Linux command line, and carefully following how `nmdctl` is meant to be used.
 > Use at your own risk, and always have backups!
+>
+> That said, plenty of people are already running this in (homelab) production, including [one user with a half-petabyte array](https://github.com/qvr/nonraid/discussions/93).
 
 ## Table of Contents
 
@@ -63,9 +63,9 @@ While this is a fork, we try to keep the changes to driver minimal to make syncs
 | ------------- | --------------------- | ------------- | -------------- | ------ |
 | 6.1 - 6.4 | [nonraid-6.1](https://github.com/qvr/nonraid/tree/nonraid-6.1) | unRAID 6.12.15 (6.1.126-Unraid) | Debian 12 | Contains fixes backported from 6.6 and 6.18 branch |
 | 6.5 - 6.8 | [nonraid-6.6](https://github.com/qvr/nonraid/tree/nonraid-6.6) | unRAID 7.0.1 (6.6.78-Unraid) | Ubuntu 24.04 LTS GA kernel | Contains fixes backported from 6.18 branch |
-| 6.11 - 7.1 | [nonraid-6.18](https://github.com/qvr/nonraid/tree/nonraid-6.18) | unRAID 7.3.0 (6.18.29-Unraid) | Ubuntu 24.04 LTS HWE kernel, Debian 13, Arch, Proxmox VE 9 | |
+| 6.11 - 7.2 | [nonraid-6.18](https://github.com/qvr/nonraid/tree/nonraid-6.18) | unRAID 7.3.0 (6.18.29-Unraid) | Ubuntu 24.04 LTS HWE kernel, Debian 13, Arch, Proxmox VE 9 | |
 
-The supported kernel version ranges might be inaccurate, the driver has been tested to work on **Ubuntu 24.04 LTS** GA kernel (6.8.0) and HWE kernels (6.11 and 6.14), on **Debian 12** (6.1), on **Debian 13** (6.12), on **Arch Linux** lts kernel (6.12) and stable kernel (as of 7.1) and on **Proxmox VE 9** (6.14). Note that kernel versions 6.9 and 6.10 are not supported. You can report other distributions and kernel versions that work in the [discussions](https://github.com/qvr/nonraid/discussions).
+The supported kernel version ranges might be inaccurate, the driver has been tested to work on **Ubuntu 24.04 LTS** GA kernel (6.8.0) and HWE kernels (6.11 and 6.14), on **Debian 12** (6.1), on **Debian 13** (6.12), on **Arch Linux** lts kernel (6.12) and stable kernel (as of 7.2) and on **Proxmox VE 9** (6.14). Note that kernel versions 6.9 and 6.10 are not supported. You can report other distributions and kernel versions that work in the [discussions](https://github.com/qvr/nonraid/discussions).
 
 ## Installation
 
